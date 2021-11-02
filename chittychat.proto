@@ -3,8 +3,7 @@ package GRPCex;
 option go_package = "./test";
 
 service ChatService {
-  rpc Publish(ChatMessage) returns (ChatMessage) {}
-  rpc Broadcast(ChatMessage) returns (Null) {}
+  rpc SendMessage(stream ChatMessage) returns (MessageAcknowledgement) {}
   rpc Subscribe(JoinMessage) returns (stream ChatMessage) {}
   rpc Unsubscribe(LeaveMessage) returns (Null) {}
 }
@@ -23,6 +22,11 @@ message ChatMessage{
   int64 t = 1;
   string sender = 2;
   string message = 3;
+}
+
+message MessageAcknowledgement{
+  int64 t = 1;
+  string acknowledgement = 2;
 }
 
 message ChatHistory {

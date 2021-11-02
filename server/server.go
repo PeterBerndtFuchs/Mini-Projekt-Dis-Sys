@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"io"
 	"log"
 	pb "mini_project_dis_sys"
 	"net"
@@ -16,50 +16,88 @@ const (
 
 type ChatServiceServer struct {
 	pb.UnimplementedChatServiceServer
+	mu       sync.Mutex
+	channels []chan *pb.ChatMessage
 }
 
-func (s *ChatServiceServer) Publish(ctx context.Context, in *pb.ChatMessage) (*pb.ChatMessage, error) {
-	fmt.Printf("Received message: %v %v \n", in.GetSender(), in.GetMessage())
-	msgChannel <- *in
-	return in, nil
-}
+func (s *ChatServiceServer) SendMessage(stream pb.ChatService_SendMessageServer) error {
+	msg, err := stream.Recv()
+	if err == io.EOF {
+		return nil
+	}
 
-var msgChannel = make(chan pb.ChatMessage)
+	if err != nil {
+		return err
+	}
+	fmt.Println("I received a message")
 
-func (s *ChatServiceServer) Subscribe(in *pb.JoinMessage, srv pb.ChatService_SubscribeServer) error {
-	fmt.Printf("Client connected: %v", in.Sender)
+	ack := pb.MessageAcknowledgement{
+		T:               0,
+		Acknowledgement: "Sent message",
+	}
+	stream.SendAndClose(&ack)
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
 	go func() {
-
-		for {
-			defer wg.Done()
-			fmt.Println("test!")
-			message := <-msgChannel
-			fmt.Printf("I GOT A MESSAGE IT WORKS!!")
-			err := srv.Send(&message)
-			if err != nil {
-				log.Printf("send error %v", err)
-			}
+		fmt.Println(s.channels)
+		for _, msgChan := range s.channels {
+			msgChan <- msg
 		}
 	}()
-
-	wg.Wait()
 	return nil
 }
 
+func (s *ChatServiceServer) Subscribe(joinMessage *pb.JoinMessage, stream pb.ChatService_SubscribeServer) error {
+	fmt.Printf("Client connected: %v \n", joinMessage.Sender)
+
+	msgChannel := make(chan *pb.ChatMessage)
+	s.channels = append(s.channels, msgChannel)
+
+	waitc := make(chan struct{})
+	go func() {
+		for {
+			msg := <-msgChannel
+			fmt.Printf("Received message: %v \n", msg)
+			stream.Send(msg)
+		}
+	}()
+
+	<-waitc
+	return nil
+}
+
+func newServer() *ChatServiceServer {
+	s := &ChatServiceServer{
+		channels: make([]chan *pb.ChatMessage, 0),
+	}
+	return s
+}
+
 func main() {
+	fmt.Println("--- SERVER APP ---")
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterChatServiceServer(s, &ChatServiceServer{})
+	pb.RegisterChatServiceServer(s, newServer())
 	log.Printf("server listening at %v", lis.Addr())
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	s.Serve(lis)
+
+	/*for {
+		 server :=<-subscribeChannel
+		 go func(subscribeServer pb.ChatService_SubscribeServer) {
+			 for {
+				 fmt.Println("I AM RUNNING!!")
+				 //defer wg.Done()
+				 fmt.Println("test!")
+				 message := <-msgChannel
+				 fmt.Printf("I GOT A MESSAGE IT WORKS!!")
+				 err := server.Send(&message)
+				 if err != nil {
+					 log.Printf("send error %v", err)
+				 }
+			 }
+		 }(server)
+	}*/
 }

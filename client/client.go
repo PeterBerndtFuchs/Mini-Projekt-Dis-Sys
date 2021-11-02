@@ -9,71 +9,78 @@ import (
 	"log"
 	pb "mini_project_dis_sys"
 	"os"
-	"time"
 )
 
 const (
 	address = "localhost:50051"
 )
 
+var name string
+
+func join(ctx context.Context, client pb.ChatServiceClient) {
+	joinMessage := pb.JoinMessage{Sender: name}
+	stream, err := client.Subscribe(ctx, &joinMessage)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	fmt.Printf("Joined server\n")
+
+	waitc := make(chan struct{})
+
+	go func() {
+		for {
+			in, err := stream.Recv()
+			if err == io.EOF {
+				close(waitc)
+				fmt.Println("I'm done")
+				return
+			}
+			if err != nil {
+				log.Fatalf("error: %v", err)
+			}
+			fmt.Printf("(%v): %v \n", in.Sender, in.Message)
+		}
+	}()
+
+	<-waitc
+}
+
+func sendMessage(ctx context.Context, client pb.ChatServiceClient, message string) {
+	stream, err := client.SendMessage(ctx)
+	if err != nil {
+		log.Printf("Can't send message: %v", err)
+	}
+	msg := pb.ChatMessage{
+		T:       0,
+		Message: message,
+		Sender:  name,
+	}
+	stream.Send(&msg)
+
+	_, err = stream.CloseAndRecv()
+}
+
 func main() {
+
+	// Connect
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("Did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewChatServiceClient(conn)
 
+	// Name
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("Enter your chat name:")
 	scanner.Scan()
-	name := scanner.Text()
+	name = scanner.Text()
 
-	// create stream
+	// Create stream
 	client := pb.NewChatServiceClient(conn)
-	in := &pb.JoinMessage{Sender: name}
-	stream, err := client.Subscribe(context.Background(), in)
-	if err != nil {
-		log.Fatalf("Subscribe error %v", err)
-	}
+	go join(context.Background(), client)
 
-	done := make(chan bool)
-
-	go func() {
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				done <- true //means stream is finished
-				return
-			}
-			if err != nil {
-				log.Fatalf("cannot receive %v", err)
-			}
-			log.Printf("Resp received: %s", resp.Message)
-		}
-	}()
-
-	<-done //we will wait until all response is received
-	log.Printf("finished")
-
-	for {
-		scanner.Scan()
-
-		if len(scanner.Text()) <= 128 {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-
-			_, err := c.Publish(ctx, &pb.ChatMessage{
-				T:       0,
-				Sender:  name,
-				Message: scanner.Text(),
-			})
-			if err != nil {
-				log.Printf("could not send the message: %v", err)
-			}
-		} else {
-			fmt.Println("Max message length is 128 characters")
-		}
+	for scanner.Scan() {
+		go sendMessage(context.Background(), client, scanner.Text())
 	}
 
 }
