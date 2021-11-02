@@ -60,6 +60,16 @@ func sendMessage(ctx context.Context, client pb.ChatServiceClient, message strin
 	_, err = stream.CloseAndRecv()
 }
 
+func leave(ctx context.Context, client pb.ChatServiceClient) {
+	_, err := client.Unsubscribe(ctx, &pb.LeaveMessage{
+		T:      0,
+		Sender: name,
+	})
+	if err != nil {
+		log.Printf("Can't send leave message: %v", err)
+	}
+}
+
 func main() {
 
 	// Connect
@@ -80,7 +90,11 @@ func main() {
 	go join(context.Background(), client)
 
 	for scanner.Scan() {
-		go sendMessage(context.Background(), client, scanner.Text())
+		if scanner.Text() == "/leave" {
+			go leave(context.Background(), client)
+		} else {
+			go sendMessage(context.Background(), client, scanner.Text())
+		}
 	}
 
 }

@@ -33,16 +33,14 @@ func (s *ChatServiceServer) SendMessage(stream pb.ChatService_SendMessageServer)
 
 	ack := pb.MessageAcknowledgement{
 		T:               0,
-		Acknowledgement: "Sent message",
+		Acknowledgement: "Server received message",
 	}
 	stream.SendAndClose(&ack)
 
-	go func() {
-		fmt.Println(s.channels)
-		for _, msgChan := range s.channels {
-			msgChan <- msg
-		}
-	}()
+	fmt.Println(s.channels)
+	for _, msgChan := range s.channels {
+		msgChan <- msg
+	}
 	return nil
 }
 
@@ -52,7 +50,7 @@ func (s *ChatServiceServer) Subscribe(joinMessage *pb.JoinMessage, stream pb.Cha
 	msgChannel := make(chan *pb.ChatMessage)
 	s.channels = append(s.channels, msgChannel)
 
-	waitc := make(chan struct{})
+	waitChannel := make(chan struct{})
 	go func() {
 		for {
 			msg := <-msgChannel
@@ -61,7 +59,7 @@ func (s *ChatServiceServer) Subscribe(joinMessage *pb.JoinMessage, stream pb.Cha
 		}
 	}()
 
-	<-waitc
+	<-waitChannel
 	return nil
 }
 
