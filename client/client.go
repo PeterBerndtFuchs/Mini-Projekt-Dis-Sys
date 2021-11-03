@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -16,29 +15,45 @@ const (
 )
 
 var name string
+var T int64
 
 func join(ctx context.Context, client pb.ChatServiceClient) {
-	joinMessage := pb.JoinMessage{Sender: name}
+	T++
+	joinMessage := pb.JoinMessage{
+		T:      T,
+		Sender: name,
+	}
+	log.Printf("----I JOINED WITH THE TIME: %v \n", T)
+
 	stream, err := client.Subscribe(ctx, &joinMessage)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	fmt.Printf("Joined server\n")
+	log.Printf("Joined server\n")
 
 	waitc := make(chan struct{})
 
 	go func() {
 		for {
 			in, err := stream.Recv()
+
+			if in.T > T {
+				T = in.T
+			}
+			T++
+			log.Printf("----I RECEIVED A MESSAGE WITH THE TIME: %v \n", T)
+
 			if err == io.EOF {
 				close(waitc)
-				fmt.Println("I'm done")
+				log.Println("I'm done")
 				return
 			}
 			if err != nil {
 				log.Fatalf("error: %v", err)
 			}
-			fmt.Printf("(%v): %v \n", in.Sender, in.Message)
+
+			log.Println(in.Message)
+			// log.Printf("(%v): %v \n", in.Sender, in.Message)
 		}
 	}()
 
@@ -50,21 +65,26 @@ func sendMessage(ctx context.Context, client pb.ChatServiceClient, message strin
 	if err != nil {
 		log.Printf("Can't send message: %v", err)
 	}
+
+	T++
 	msg := pb.ChatMessage{
-		T:       0,
+		T:       T,
 		Message: message,
 		Sender:  name,
 	}
 	stream.Send(&msg)
+	log.Printf("----I SENT A MESSAGE WITH THE TIME: %v \n", T)
 
 	_, err = stream.CloseAndRecv()
 }
 
 func leave(ctx context.Context, client pb.ChatServiceClient) {
+	T++
 	_, err := client.Unsubscribe(ctx, &pb.LeaveMessage{
-		T:      0,
+		T:      T,
 		Sender: name,
 	})
+	log.Printf("----I LEFT WITH THE TIME: %v \n", T)
 	if err != nil {
 		log.Printf("Can't send leave message: %v", err)
 	}
@@ -81,7 +101,7 @@ func main() {
 
 	// Name
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("Enter your chat name:")
+	log.Println("Enter your chat name:")
 	scanner.Scan()
 	name = scanner.Text()
 
@@ -93,7 +113,11 @@ func main() {
 		if scanner.Text() == "/leave" {
 			go leave(context.Background(), client)
 		} else {
-			go sendMessage(context.Background(), client, scanner.Text())
+			if len(scanner.Text()) <= 128 {
+				go sendMessage(context.Background(), client, scanner.Text())
+			} else {
+				log.Println("Message is too long. Max length 128 characters")
+			}
 		}
 	}
 
