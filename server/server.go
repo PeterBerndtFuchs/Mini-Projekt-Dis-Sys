@@ -39,7 +39,7 @@ func (s *ChatServiceServer) SendMessage(stream pb.ChatService_SendMessageServer)
 	if err != nil {
 		return err
 	}
-	log.Println("I received a message")
+	log.Printf("----(debug: Received message from client %v with Lamport time %v)", msg.Sender, msg.T)
 
 	acknowledgementMessage := pb.MessageAcknowledgement{
 		T:               T,
@@ -56,7 +56,7 @@ func (s *ChatServiceServer) SendMessage(stream pb.ChatService_SendMessageServer)
 
 	msg.Message = "(" + msg.Sender + "): " + msg.Message
 
-	log.Printf("----UPDATED LAMPORT TIME: %v \n", T)
+	log.Printf("----(debug: New Lamport time is: %v) \n", T)
 	go s.Broadcast(msg)
 	return nil
 }
@@ -144,10 +144,10 @@ func main() {
 	}
 	defer file.Close()
 
-	log.SetOutput(file)
-	log.Print("Logging to a file in Go!")
+	mw := io.MultiWriter(os.Stdout, file)
+	log.SetOutput(mw)
 
-	log.Println("--- SERVER APP ---")
+	log.Println("--- SERVER ---")
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

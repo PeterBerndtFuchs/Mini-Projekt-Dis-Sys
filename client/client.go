@@ -23,7 +23,7 @@ func join(ctx context.Context, client pb.ChatServiceClient) {
 		T:      T,
 		Sender: name,
 	}
-	log.Printf("----I JOINED WITH THE TIME: %v \n", T)
+	log.Printf("----(debug: JOINED AT LAMPORT TIME: %v) \n", T)
 
 	stream, err := client.Subscribe(ctx, &joinMessage)
 	if err != nil {
@@ -41,11 +41,10 @@ func join(ctx context.Context, client pb.ChatServiceClient) {
 				T = in.T
 			}
 			T++
-			log.Printf("----I RECEIVED A MESSAGE WITH THE TIME: %v \n", T)
+			log.Printf("----(debug: RECEIVED A MESSAGE AT LAMPORT TIME: %v) \n", T)
 
 			if err == io.EOF {
 				close(waitc)
-				log.Println("I'm done")
 				return
 			}
 			if err != nil {
@@ -73,7 +72,7 @@ func sendMessage(ctx context.Context, client pb.ChatServiceClient, message strin
 		Sender:  name,
 	}
 	stream.Send(&msg)
-	log.Printf("----I SENT A MESSAGE WITH THE TIME: %v \n", T)
+	log.Printf("----(debug: I SENT A MESSAGE AT LAMPORT TIME: %v) \n", T)
 
 	_, err = stream.CloseAndRecv()
 }
@@ -84,7 +83,7 @@ func leave(ctx context.Context, client pb.ChatServiceClient) {
 		T:      T,
 		Sender: name,
 	})
-	log.Printf("----I LEFT WITH THE TIME: %v \n", T)
+	//log.Printf("----I LEFT WITH THE TIME: %v \n", T)
 	if err != nil {
 		log.Printf("Can't send leave message: %v", err)
 	}
@@ -98,6 +97,8 @@ func main() {
 		log.Fatalf("Did not connect: %v", err)
 	}
 	defer conn.Close()
+
+	log.Println("--- CLIENT ---")
 
 	// Name
 	scanner := bufio.NewScanner(os.Stdin)
