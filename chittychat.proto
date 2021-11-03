@@ -1,0 +1,38 @@
+syntax = "proto3";
+package GRPCex;
+option go_package = "./test";
+
+service ChatService {
+  rpc SendMessage(stream ChatMessage) returns (MessageAcknowledgement) {}
+  rpc Subscribe(JoinMessage) returns (stream ChatMessage) {}
+  rpc Unsubscribe(LeaveMessage) returns (Null) {}
+}
+
+message JoinMessage {
+  int64 t = 1;
+  string sender = 2;
+}
+
+message LeaveMessage {
+  int64 t = 1;
+  string sender = 2;
+}
+
+message ChatMessage{
+  int64 t = 1;
+  string sender = 2;
+  string message = 3;
+}
+
+message MessageAcknowledgement{
+  int64 t = 1;
+  string acknowledgement = 2;
+}
+
+message ChatHistory {
+  int64 t = 1;
+  repeated string sender = 2;
+  repeated string message = 3;
+}
+
+message Null {}
