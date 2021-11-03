@@ -62,11 +62,8 @@ func (s *ChatServiceServer) SendMessage(stream pb.ChatService_SendMessageServer)
 }
 
 func (s *ChatServiceServer) Broadcast(msg *pb.ChatMessage) {
-	log.Println(s.clients)
 	for _, client := range s.clients {
 		if client.status != "disconnected" {
-			log.Println(msg)
-			log.Println(client.channel)
 			client.channel <- msg
 		}
 	}
