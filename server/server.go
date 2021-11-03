@@ -65,11 +65,9 @@ func (s *ChatServiceServer) Broadcast(msg *pb.ChatMessage) {
 	log.Println(s.clients)
 	for _, client := range s.clients {
 		if client.status != "disconnected" {
-			log.Println("1111")
 			log.Println(msg)
 			log.Println(client.channel)
 			client.channel <- msg
-			log.Println("2222")
 		}
 	}
 }
@@ -121,7 +119,7 @@ func (s *ChatServiceServer) Subscribe(joinMessage *pb.JoinMessage, stream pb.Cha
 	go func() {
 		for {
 			msg := <-client.channel
-			log.Printf("Received message: %v \n", msg)
+			log.Printf("Sending message to client: %v \n", msg)
 			stream.Send(msg)
 		}
 	}()
